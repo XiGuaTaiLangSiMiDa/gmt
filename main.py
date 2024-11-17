@@ -66,6 +66,40 @@ def format_prediction_report(predictions):
         report.append(f"- 模型准确度: {pred['accuracy']:.2%}")
     return '\n'.join(report)
 
+def format_strategy_report(strategies):
+    """格式化策略报告"""
+    report = []
+    
+    for term, strategy in strategies.items():
+        report.append(f"\n## {term} 策略建议:")
+        
+        # 现货策略
+        report.append("\n### 现货策略:")
+        spot = strategy['spot']
+        report.append(f"- 方向: {'做多' if spot['direction'] == 'up' else '做空'}")
+        report.append(f"- 建议入场点: {[f'{price:.4f}' for price in spot['entry_points']]}")
+        report.append(f"- 止损价位: {spot['stop_loss']:.4f}")
+        report.append(f"- 止盈价位: {spot['take_profit']:.4f}")
+        report.append(f"- 信心指数: {spot['confidence']:.2%}")
+        
+        # 合约策略
+        report.append("\n### 合约策略:")
+        futures = strategy['futures']
+        report.append(f"- 方向: {'做多' if futures['direction'] == 'up' else '做空'}")
+        report.append(f"- 建议杠杆: {futures['leverage']}倍")
+        report.append(f"- 建议入场点: {[f'{price:.4f}' for price in futures['entry_points']]}")
+        report.append(f"- 止损价位: {futures['stop_loss']:.4f}")
+        report.append(f"- 止盈价位: {futures['take_profit']:.4f}")
+        report.append(f"- 信心指数: {futures['confidence']:.2%}")
+        
+        # 风险提示
+        if futures['confidence'] < 0.6:
+            report.append("\n⚠️ 风险提示: 当前市场信号较弱，建议降低仓位或观望。")
+        if futures['confidence'] < 0.4:
+            report.append("⚠️ 高风险警告: 市场信号非常不明确，不建议进行合约交易。")
+            
+    return '\n'.join(report)
+
 def main():
     # 创建报告目录
     if not os.path.exists('reports'):
@@ -92,6 +126,9 @@ def main():
     
     report.append("\n## 趋势预测")
     report.append(format_prediction_report(analysis['predictions']))
+    
+    report.append("\n# 交易策略建议")
+    report.append(format_strategy_report(analysis['strategies']))
     
     # 保存报告
     with open('reports/analysis_report.md', 'w', encoding='utf-8') as f:

@@ -2,12 +2,11 @@ import os
 import pandas as pd
 from datetime import datetime, timedelta
 from binance.client import Client
-from config import SYMBOL, CACHE_DIR
+from config import BINANCE_API_KEY, BINANCE_API_SECRET, SYMBOL, CACHE_DIR
 
 class DataFetcher:
     def __init__(self):
-        # 使用公共API
-        self.client = Client(None, None)
+        self.client = Client(BINANCE_API_KEY, BINANCE_API_SECRET)
         self.ensure_cache_dir()
         
     def ensure_cache_dir(self):
@@ -19,16 +18,24 @@ class DataFetcher:
         """获取K线数据"""
         cache_file = os.path.join(CACHE_DIR, f'{SYMBOL}_{interval}.csv')
         
-        # 如果缓存文件存在，读取缓存
-        if os.path.exists(cache_file):
-            df = pd.read_csv(cache_file)
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            last_time = df['timestamp'].iloc[-1]
-            if start_time is None:
-                return df
-            start_time = max(start_time, last_time)
-        
         try:
+            # 如果缓存文件存在，读取缓存
+            if os.path.exists(cache_file):
+                df = pd.read_csv(cache_file)
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                
+                # 如果有缓存数据，获取最后一条数据的时间
+                if not df.empty:
+                    # 删除最后一条数据（因为它可能是不完整的）
+                    last_complete_time = df.iloc[-2]['timestamp']
+                    df = df.iloc[:-1]
+                    
+                    # 如果提供了start_time，使用较早的时间
+                    if start_time:
+                        start_time = min(start_time, last_complete_time)
+                    else:
+                        start_time = last_complete_time
+            
             # 获取新数据
             klines = self.client.get_historical_klines(
                 SYMBOL,
@@ -49,7 +56,7 @@ class DataFetcher:
             df_new[['open', 'high', 'low', 'close', 'volume']] = df_new[['open', 'high', 'low', 'close', 'volume']].astype(float)
             
             # 合并新旧数据
-            if os.path.exists(cache_file):
+            if os.path.exists(cache_file) and not df.empty:
                 df = pd.concat([df, df_new])
                 df = df.drop_duplicates(subset=['timestamp']).sort_values('timestamp')
             else:
